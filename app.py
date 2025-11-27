@@ -53,10 +53,10 @@ def generate_pokemon(description):
         return None
 
 # --- UI Layout ---
-st.set_page_config(page_title="Gemini Pokemon Creator", page_icon="⚡")
+st.set_page_config(page_title="Alex's Pokemon Creator", page_icon="⚡")
 
-st.title("⚡ Gemini Pokemon Generator")
-st.markdown("Powered by **Google Imagen 3**")
+st.title("⚡ Alex's Pokemon Generator")
+st.markdown("Powered by **Google Gemini 2.5 Flash Image**")
 
 # 1. User Input
 user_desc = st.text_area("Describe your Pokemon:", placeholder="e.g., A ghost-type kitten made of smoke with glowing blue eyes...")
