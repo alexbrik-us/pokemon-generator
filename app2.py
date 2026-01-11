@@ -136,7 +136,7 @@ if st.session_state.pokemon_image is None:
 
 # --- MODE 2: CHAT (If image exists) ---
 else:
-    col1, col2 = st.columns([3, 2])
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         # Display the static image
