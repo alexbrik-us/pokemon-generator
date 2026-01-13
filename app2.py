@@ -65,7 +65,7 @@ def determine_voice_persona(description):
         f"- 'en-US-AnaNeural': Child, cute, small, fairy, playful.\n"
         f"- 'en-US-AriaNeural': Female, elegant, mystical, psychic.\n"
         f"- 'en-US-GuyNeural': Male, neutral, standard.\n"
-        f"- 'en-US-ChristopherNeural': Deep, tough, large, fighting/rock/ground types.\n"
+        f"- 'en-US-ChristopherNeural': Deep, tough, large, dragon, militant, aggressive, fighting/rock/ground types.\n"
         f"- 'en-US-RogerNeural': Old, wise, ghost/ancient types.\n"
         f"- 'en-GB-SoniaNeural': British, intellectual, refined, royal, ice types.\n"
         f"- 'en-GB-RyanNeural': British, calm, loyal, stoic, steel/grass types.\n"
