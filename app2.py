@@ -3,6 +3,10 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
+from io import BytesIO
+import asyncio
+import edge_tts
+import json
 
 # --- Configuration ---
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "YOUR_API_KEY_HERE_FOR_LOCAL_TESTING")
@@ -15,6 +19,10 @@ if "pokemon_desc" not in st.session_state:
     st.session_state.pokemon_desc = ""
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "image_accepted" not in st.session_state:
+    st.session_state.image_accepted = False
+if "selected_voice" not in st.session_state:
+    st.session_state.selected_voice = "en-US-AnaNeural" # Default cute voice
 
 def generate_pokemon(description):
     """Generates the Pokemon Image using Gemini 2.5 Flash Image."""
@@ -47,7 +55,53 @@ def generate_pokemon(description):
         st.error(f"Error generating image: {e}")
         return None
 
-def get_chat_response(user_input, image_bytes, description):
+def determine_voice_persona(description):
+    """Asks Gemini to pick a voice based on the description."""
+    client = genai.Client(api_key=API_KEY)
+    
+    prompt = (
+        f"Analyze this Pokemon description and pick the best voice: '{description}'.\n"
+        f"Options:\n"
+        f"- 'en-US-AnaNeural': Child, cute, small, fairy, playful.\n"
+        f"- 'en-US-AriaNeural': Female, elegant, mystical, psychic.\n"
+        f"- 'en-US-GuyNeural': Male, neutral, standard.\n"
+        f"- 'en-US-ChristopherNeural': Deep, tough, large, fighting/rock/ground types.\n"
+        f"- 'en-US-RogerNeural': Old, wise, ghost/ancient types.\n"
+        f"- 'en-GB-SoniaNeural': British, intellectual, refined, royal, ice types.\n"
+        f"- 'en-GB-RyanNeural': British, calm, loyal, stoic, steel/grass types.\n"
+        f"- 'en-AU-WilliamNeural': Australian, adventurous, fast, electric/flying types.\n"
+        f"- 'en-US-EricNeural': Energetic, friendly, young male, starter types.\n\n"
+        f"Return ONLY the voice ID string."
+    )
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
+        voice_id = response.text.strip()
+        # Fallback if model hallucinates extra text
+        valid_voices = [
+            'en-US-AnaNeural', 'en-US-AriaNeural', 'en-US-GuyNeural', 
+            'en-US-ChristopherNeural', 'en-US-RogerNeural',
+            'en-GB-SoniaNeural', 'en-GB-RyanNeural', 'en-AU-WilliamNeural', 'en-US-EricNeural'
+        ]
+        text_found = [v for v in valid_voices if v in voice_id]
+        return text_found[0] if text_found else "en-US-AnaNeural"
+    except Exception as e:
+        print(f"Voice selection error: {e}")
+        return "en-US-AnaNeural"
+
+async def generate_speech(text, voice):
+    """Generates audio using edge-tts."""
+    communicate = edge_tts.Communicate(text, voice)
+    audio_data = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
+    return audio_data
+
+def get_chat_response(user_input, image_bytes, description, audio_bytes=None):
     client = genai.Client(api_key=API_KEY)
     model_id = "gemini-2.0-flash" 
 
@@ -76,6 +130,22 @@ def get_chat_response(user_input, image_bytes, description):
             ]
         )
     )
+
+    # 1.5. Add Audio Input if available
+    if audio_bytes:
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        inline_data=types.Blob(
+                            data=audio_bytes,
+                            mime_type="audio/wav"
+                        )
+                    )
+                ]
+            )
+        )
     
     # 2. Add confirmation 
     contents.append(
@@ -114,11 +184,11 @@ def get_chat_response(user_input, image_bytes, description):
 
 # --- UI Layout ---
 st.set_page_config(page_title="Alex's Pokemon Creator", page_icon="⚡", layout="wide")
-st.title("⚡ Alex's Pokemon Generator")
+st.title("⚡ Alex's Pokemon Generator 2")
 
 # --- MODE 1: GENERATION (If no image exists yet) ---
 if st.session_state.pokemon_image is None:
-    st.markdown("Powered by **Google Gemini 2.5 Flash Image**")
+    #st.markdown("Powered by **Google Gemini 2.5 Flash Image**")
     user_desc = st.text_area("Describe your Pokemon:", placeholder="e.g., A ghost-type kitten made of smoke...")
 
     if st.button("Generate"):
@@ -132,9 +202,49 @@ if st.session_state.pokemon_image is None:
                     # Save to session state to switch modes
                     st.session_state.pokemon_image = image_bytes
                     st.session_state.pokemon_desc = user_desc
-                    st.rerun() # Force a rerun to switch to Chat UI instantly
+                    st.session_state.image_accepted = False
+                    st.rerun() # Force a rerun to switch to Review UI
 
-# --- MODE 2: CHAT (If image exists) ---
+# --- MODE 2: REVIEW (Image exists, but not accepted) ---
+elif not st.session_state.image_accepted:
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        # Display the current draft image
+        image = Image.open(BytesIO(st.session_state.pokemon_image))
+        st.image(image, caption="Draft Pokemon", use_container_width=True)
+        
+    with col2:
+        st.subheader("Review your Pokemon")
+        
+        # Allow user to revise description
+        new_desc = st.text_area("Revise Description:", value=st.session_state.pokemon_desc, height=150)
+        
+        col_btn1, col_btn2 = st.columns([1, 1])
+        
+        with col_btn1:
+            if st.button("Regenerate"):
+                if not new_desc:
+                    st.warning("Description cannot be empty.")
+                else:
+                    with st.spinner("Re-summoning..."):
+                        image_bytes = generate_pokemon(new_desc)
+                        if image_bytes:
+                            st.session_state.pokemon_image = image_bytes
+                            st.session_state.pokemon_desc = new_desc
+                            st.rerun()
+
+        with col_btn2:
+            if st.button("It's Perfect! Start Chatting"):
+                # Determine voice persona once upon acceptance
+                with st.spinner("Analyzing vocal cords..."):
+                    voice_id = determine_voice_persona(st.session_state.pokemon_desc)
+                    st.session_state.selected_voice = voice_id
+                
+                st.session_state.image_accepted = True
+                st.rerun()
+
+# --- MODE 3: CHAT (Image exists AND accepted) ---
 else:
     col1, col2 = st.columns([1, 1])
     
@@ -148,6 +258,7 @@ else:
             st.session_state.pokemon_image = None
             st.session_state.pokemon_desc = ""
             st.session_state.chat_history = []
+            st.session_state.image_accepted = False
             st.rerun()
 
     with col2:
@@ -164,26 +275,53 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-        # Chat Input
-        if prompt := st.chat_input("Say something..."):
+        # Chat Input (Text)
+        prompt = st.chat_input("Say something...")
+        
+        # Chat Input (Audio)
+        audio_input = st.audio_input("Or speak to your Pokemon")
+
+        user_msg = None
+        user_audio = None
+
+        if prompt:
+            user_msg = prompt
+        elif audio_input:
+            user_msg = "🎤 *(Voice Message)*"
+            user_audio = audio_input.read()
+
+        if user_msg:
             # 1. Add User Message to History
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
+            st.session_state.chat_history.append({"role": "user", "content": user_msg})
             
             # 2. Display User Message immediately
             with container:
                 with st.chat_message("user"):
-                    st.markdown(prompt)
+                    st.markdown(user_msg)
                     
             # 3. Get Response
             with st.spinner("The Pokemon is thinking..."):
                 reply = get_chat_response(
-                    prompt, 
+                    prompt if prompt else "Respond to the audio", 
                     st.session_state.pokemon_image, 
-                    st.session_state.pokemon_desc
+                    st.session_state.pokemon_desc,
+                    audio_bytes=user_audio
                 )
             
             # 4. Add Model Message to History & Display
             st.session_state.chat_history.append({"role": "assistant", "content": reply})
+            
+            # 5. Generate Audio Response
+            try:
+                # Use the selected persona voice
+                # Run async function in sync context
+                audio_response = asyncio.run(generate_speech(reply, st.session_state.selected_voice))
+            except Exception as e:
+                audio_response = None
+                print(f"TTS Error: {e}")
+
             with container:
                 with st.chat_message("assistant"):
                     st.markdown(reply)
+                    if audio_response:
+                        st.audio(audio_response, format="audio/mp3", autoplay=True)
