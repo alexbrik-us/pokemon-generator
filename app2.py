@@ -92,9 +92,9 @@ def determine_voice_persona(description):
         print(f"Voice selection error: {e}")
         return "en-US-AnaNeural"
 
-async def generate_speech(text, voice):
+async def generate_speech(text, voice, rate="+0%", pitch="+0Hz"):
     """Generates audio using edge-tts."""
-    communicate = edge_tts.Communicate(text, voice)
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     audio_data = b""
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
@@ -314,8 +314,20 @@ else:
             # 5. Generate Audio Response
             try:
                 # Use the selected persona voice
+                # Check if it's the Deep Monster voice (ChristopherNeural) and apply pitch shift
+                pitch = "+0Hz"
+                rate = "+0%"
+                if st.session_state.selected_voice == "en-US-ChristopherNeural":
+                    pitch = "-30Hz"
+                    rate = "-10%"
+                
                 # Run async function in sync context
-                audio_response = asyncio.run(generate_speech(reply, st.session_state.selected_voice))
+                audio_response = asyncio.run(generate_speech(
+                    reply, 
+                    st.session_state.selected_voice,
+                    rate=rate,
+                    pitch=pitch
+                ))
             except Exception as e:
                 audio_response = None
                 print(f"TTS Error: {e}")
