@@ -7,6 +7,7 @@ from io import BytesIO
 import asyncio
 import edge_tts
 import json
+import base64
 
 # --- Configuration ---
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "YOUR_API_KEY_HERE_FOR_LOCAL_TESTING")
@@ -23,6 +24,10 @@ if "image_accepted" not in st.session_state:
     st.session_state.image_accepted = False
 if "selected_voice" not in st.session_state:
     st.session_state.selected_voice = "en-US-AnaNeural" # Default cute voice
+if "voice_enabled" not in st.session_state:
+    st.session_state.voice_enabled = False
+if "pokemon_name" not in st.session_state:
+    st.session_state.pokemon_name = ""
 
 def generate_pokemon(description):
     """Generates the Pokemon Image using Gemini 2.5 Flash Image."""
@@ -183,8 +188,63 @@ def get_chat_response(user_input, image_bytes, description, audio_bytes=None):
         return f"*(The Pokemon looks confused... Error: {e})*"
 
 # --- UI Layout ---
-st.set_page_config(page_title="Alex's Pokemon Creator", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Alex's Pokemon Creator", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 st.title("⚡ Alex's Pokemon Generator 2")
+
+# --- SAVING & LOADING SESSIONS ---
+with st.sidebar:
+    st.header("Session Management")
+    
+    # 1. Name your Pokemon Session
+    st.session_state.pokemon_name = st.text_input("Name your Pokemon/Session:", value=st.session_state.pokemon_name)
+    
+    # 2. Save Session
+    if st.session_state.pokemon_image:
+        # Prepare data
+        session_data = {
+            "pokemon_name": st.session_state.pokemon_name,
+            "pokemon_desc": st.session_state.pokemon_desc,
+            "selected_voice": st.session_state.selected_voice,
+            "voice_enabled": st.session_state.voice_enabled,
+            "image_accepted": st.session_state.image_accepted,
+            "chat_history": st.session_state.chat_history,
+            # Encode binary image to base64 string
+            "pokemon_image_b64": base64.b64encode(st.session_state.pokemon_image).decode('utf-8')
+        }
+        json_str = json.dumps(session_data, indent=2)
+        
+        file_name = f"{st.session_state.pokemon_name if st.session_state.pokemon_name else 'pokemon'}_session.json"
+        
+        st.download_button(
+            label="💾 Save Session",
+            data=json_str,
+            file_name=file_name,
+            mime="application/json"
+        )
+    
+    # 3. Load Session
+    uploaded_file = st.file_uploader("📂 Load Session", type=["json"])
+    if uploaded_file is not None and st.button("Load Session"):
+        try:
+            data = json.load(uploaded_file)
+            
+            # Restore state
+            st.session_state.pokemon_name = data.get("pokemon_name", "")
+            st.session_state.pokemon_desc = data.get("pokemon_desc", "")
+            st.session_state.selected_voice = data.get("selected_voice", "en-US-AnaNeural")
+            st.session_state.voice_enabled = data.get("voice_enabled", True)
+            st.session_state.image_accepted = data.get("image_accepted", False)
+            st.session_state.chat_history = data.get("chat_history", [])
+            
+            # Decode image
+            if "pokemon_image_b64" in data:
+                st.session_state.pokemon_image = base64.b64decode(data["pokemon_image_b64"])
+            
+            st.success("Session loaded!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error loading file: {e}")
+
 
 # --- MODE 1: GENERATION (If no image exists yet) ---
 if st.session_state.pokemon_image is None:
@@ -263,6 +323,9 @@ else:
 
     with col2:
         st.subheader(f"Chat with your Pokemon!")
+
+        # Voice Toggle
+        st.checkbox("Enable Voice Output", key="voice_enabled")
         
         # Display Chat History
         container = st.container(height=400)
@@ -313,21 +376,24 @@ else:
             
             # 5. Generate Audio Response
             try:
-                # Use the selected persona voice
-                # Check if it's the Deep Monster voice (ChristopherNeural) and apply pitch shift
-                pitch = "+0Hz"
-                rate = "+0%"
-                if st.session_state.selected_voice == "en-US-ChristopherNeural":
-                    pitch = "-30Hz"
-                    rate = "-10%"
-                
-                # Run async function in sync context
-                audio_response = asyncio.run(generate_speech(
-                    reply, 
-                    st.session_state.selected_voice,
-                    rate=rate,
-                    pitch=pitch
-                ))
+                if st.session_state.voice_enabled:
+                    # Use the selected persona voice
+                    # Check if it's the Deep Monster voice (ChristopherNeural) and apply pitch shift
+                    pitch = "+0Hz"
+                    rate = "+0%"
+                    if st.session_state.selected_voice == "en-US-ChristopherNeural":
+                        pitch = "-30Hz"
+                        rate = "-10%"
+                    
+                    # Run async function in sync context
+                    audio_response = asyncio.run(generate_speech(
+                        reply, 
+                        st.session_state.selected_voice,
+                        rate=rate,
+                        pitch=pitch
+                    ))
+                else:
+                    audio_response = None
             except Exception as e:
                 audio_response = None
                 print(f"TTS Error: {e}")
