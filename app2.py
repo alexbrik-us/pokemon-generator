@@ -271,8 +271,7 @@ elif not st.session_state.image_accepted:
     
     with col1:
         # Display the current draft image
-        image = Image.open(BytesIO(st.session_state.pokemon_image))
-        st.image(image, caption="Draft Pokemon", use_container_width=True)
+        st.image(st.session_state.pokemon_image, caption="Draft Pokemon", use_container_width=True)
         
     with col2:
         st.subheader("Review your Pokemon")
@@ -310,8 +309,7 @@ else:
     
     with col1:
         # Display the static image
-        image = Image.open(BytesIO(st.session_state.pokemon_image))
-        st.image(image, caption="Your Pokemon Partner", use_container_width=True)
+        st.image(st.session_state.pokemon_image, caption="Your Pokemon Partner", use_container_width=True)
         
         # Reset Button
         if st.button("Release & Create New"):
