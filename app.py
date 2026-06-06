@@ -30,10 +30,10 @@ def generate_pokemon(description):
 
     # A ghost-type black kitten with blue eyes and a horn.
     try:
-        # 2. Use 'gemini-2.5-flash-image' which is the correct public model
+        # 2. Use 'gemini-3.1-flash-image' which is the correct public model
         # We use generate_content (not generate_images) for this model
         response = client.models.generate_content(
-            model='gemini-2.5-flash-image',
+            model='gemini-3.1-flash-image',
             contents=[full_prompt],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"]
@@ -56,7 +56,7 @@ def generate_pokemon(description):
 st.set_page_config(page_title="Alex's Pokemon Creator", page_icon="⚡")
 
 st.title("⚡ Alex's Pokemon Generator")
-st.markdown("Powered by **Google Gemini 2.5 Flash Image**")
+st.markdown("Powered by **Google Gemini 3.1 Flash Image**")
 
 # 1. User Input
 user_desc = st.text_area("Describe your Pokemon:", placeholder="e.g., A ghost-type kitten made of smoke with glowing blue eyes...")

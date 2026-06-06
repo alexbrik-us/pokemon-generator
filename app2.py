@@ -30,7 +30,7 @@ if "pokemon_name" not in st.session_state:
     st.session_state.pokemon_name = ""
 
 def generate_pokemon(description):
-    """Generates the Pokemon Image using Gemini 2.5 Flash Image."""
+    """Generates the Pokemon Image using Gemini 3.1 Flash Image."""
     if not API_KEY or "YOUR_API_KEY" in API_KEY:
         st.error("🚨 API Key is missing!")
         return None
@@ -46,7 +46,7 @@ def generate_pokemon(description):
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash-image',
+            model='gemini-3.1-flash-image',
             contents=[full_prompt],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"]
@@ -81,7 +81,7 @@ def determine_voice_persona(description):
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3.5-flash',
             contents=prompt
         )
         voice_id = response.text.strip()
@@ -108,7 +108,7 @@ async def generate_speech(text, voice, rate="+0%", pitch="+0Hz"):
 
 def get_chat_response(user_input, image_bytes, description, audio_bytes=None):
     client = genai.Client(api_key=API_KEY)
-    model_id = "gemini-2.0-flash" 
+    model_id = "gemini-3.5-flash" 
 
     system_instruction = (
         f"You are a Pokemon. Your appearance is defined by the attached image. "
@@ -248,7 +248,7 @@ with st.sidebar:
 
 # --- MODE 1: GENERATION (If no image exists yet) ---
 if st.session_state.pokemon_image is None:
-    #st.markdown("Powered by **Google Gemini 2.5 Flash Image**")
+    #st.markdown("Powered by **Google Gemini 3.1 Flash Image**")
     user_desc = st.text_area("Describe your Pokemon:", placeholder="e.g., A ghost-type kitten made of smoke...")
 
     if st.button("Generate"):
